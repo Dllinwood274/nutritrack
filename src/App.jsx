@@ -1,4 +1,64 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+
+// ── Supabase Config ────────────────────────────────────────────────────────
+// These get replaced with your real values from supabase.com
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY || "";
+
+// Lightweight Supabase client (no npm package needed)
+const supabase = {
+  async getUser() {
+    const session = JSON.parse(localStorage.getItem("nt_session") || "null");
+    return session;
+  },
+  async signUp(email, password) {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_KEY },
+      body: JSON.stringify({ email, password })
+    });
+    return res.json();
+  },
+  async signIn(email, password) {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_KEY },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (data.access_token) {
+      localStorage.setItem("nt_session", JSON.stringify({ token: data.access_token, userId: data.user.id, email: data.user.email }));
+    }
+    return data;
+  },
+  async signOut() {
+    localStorage.removeItem("nt_session");
+  },
+  async upsert(table, userId, payload) {
+    const session = JSON.parse(localStorage.getItem("nt_session") || "null");
+    if (!session?.token) return;
+    await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${session.token}`,
+        "Prefer": "resolution=merge-duplicates"
+      },
+      body: JSON.stringify({ user_id: userId, data: payload })
+    });
+  },
+  async fetch(table, userId) {
+    const session = JSON.parse(localStorage.getItem("nt_session") || "null");
+    if (!session?.token) return null;
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?user_id=eq.${userId}&select=data`, {
+      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${session.token}` }
+    });
+    const rows = await res.json();
+    return rows?.[0]?.data || null;
+  }
+};
+
 
 const CLAUDE_MODEL = "claude-sonnet-4-20250514";
 
@@ -164,6 +224,78 @@ export default function MacroTracker() {
   const [logDate, setLogDate] = useState(() => new Date().toISOString().split("T")[0]);
   const todayKey = new Date().toISOString().split("T")[0];
   const chatEndRef = useRef(null);
+  const [user, setUser] = useState(() => JSON.parse(localStorage.getItem("nt_session") || "null"));
+  const [authMode, setAuthMode] = useState("signin"); // "signin" | "signup"
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  // ── Auth functions ────────────────────────────────────────────────────────
+  async function handleAuth(e) {
+    e.preventDefault();
+    setAuthLoading(true);
+    setAuthError("");
+    try {
+      const result = authMode === "signup"
+        ? await supabase.signUp(authEmail, authPassword)
+        : await supabase.signIn(authEmail, authPassword);
+      if (result.access_token || result.id) {
+        const session = JSON.parse(localStorage.getItem("nt_session") || "null");
+        setUser(session);
+        if (session) await pullFromCloud(session);
+      } else {
+        setAuthError(result.error_description || result.msg || "Something went wrong. Check your email/password.");
+      }
+    } catch { setAuthError("Network error. Please try again."); }
+    setAuthLoading(false);
+  }
+
+  async function handleSignOut() {
+    await supabase.signOut();
+    setUser(null);
+  }
+
+  // ── Cloud sync: push all data up ─────────────────────────────────────────
+  const pushToCloud = useCallback(async (currentUser) => {
+    if (!currentUser?.userId || !SUPABASE_URL) return;
+    setSyncing(true);
+    const payload = {
+      goals: JSON.parse(localStorage.getItem("nt_goals") || "null"),
+      meals: JSON.parse(localStorage.getItem("nt_meals") || "[]"),
+      profile: JSON.parse(localStorage.getItem("nt_profile") || "null"),
+      weightLog: JSON.parse(localStorage.getItem("nt_weight_log") || "[]"),
+      weightUnit: JSON.parse(localStorage.getItem("nt_weight_unit") || '"lbs"'),
+      weightGoal: JSON.parse(localStorage.getItem("nt_weight_goal") || '""'),
+      workoutLog: JSON.parse(localStorage.getItem("nt_workout_log") || "{}"),
+      creatineLog: JSON.parse(localStorage.getItem("nt_creatine_log") || "{}"),
+      profileSaved: JSON.parse(localStorage.getItem("nt_profile_saved") || "false"),
+    };
+    await supabase.upsert("nutritrack_data", currentUser.userId, payload);
+    setSyncing(false);
+  }, []);
+
+  // ── Cloud sync: pull data down ────────────────────────────────────────────
+  async function pullFromCloud(currentUser) {
+    if (!currentUser?.userId || !SUPABASE_URL) return;
+    setSyncing(true);
+    const data = await supabase.fetch("nutritrack_data", currentUser.userId);
+    if (data) {
+      if (data.goals) { localStorage.setItem("nt_goals", JSON.stringify(data.goals)); setGoals(data.goals); setGoalForm(data.goals); }
+      if (data.meals) { localStorage.setItem("nt_meals", JSON.stringify(data.meals)); setMeals(data.meals); }
+      if (data.profile) { localStorage.setItem("nt_profile", JSON.stringify(data.profile)); setBodyProfile(data.profile); }
+      if (data.weightLog) { localStorage.setItem("nt_weight_log", JSON.stringify(data.weightLog)); setWeightLog(data.weightLog); }
+      if (data.weightUnit) { localStorage.setItem("nt_weight_unit", JSON.stringify(data.weightUnit)); setWeightUnit(data.weightUnit); }
+      if (data.weightGoal) { localStorage.setItem("nt_weight_goal", JSON.stringify(data.weightGoal)); setWeightGoal(data.weightGoal); }
+      if (data.workoutLog) { localStorage.setItem("nt_workout_log", JSON.stringify(data.workoutLog)); setWorkoutLog(data.workoutLog); }
+      if (data.creatineLog) { localStorage.setItem("nt_creatine_log", JSON.stringify(data.creatineLog)); setCreatineLog(data.creatineLog); }
+    }
+    setSyncing(false);
+  }
+
+  // ── Auto-push to cloud whenever data changes ──────────────────────────────
+  useEffect(() => { if (user) pushToCloud(user); }, [meals, goals, weightLog, workoutLog, creatineLog, bodyProfile]);
 
   // ── Persist all data to localStorage whenever it changes ──────────────────
   useEffect(() => { localStorage.setItem("nt_goals", JSON.stringify(goals)); }, [goals]);
@@ -268,7 +400,7 @@ Provide 2-3 suggestions covering the remaining meal slots. Make sure the combine
     `.trim();
 
     try {
-      const res = await fetch("https:///api/chat", {
+      const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 2000, messages: [{ role: "user", content: prompt }] })
@@ -277,8 +409,8 @@ Provide 2-3 suggestions covering the remaining meal slots. Make sure the combine
       const text = data.content?.find(b => b.type === "text")?.text || "{}";
       const clean = text.replace(/```json|```/g, "").trim();
       setSmartSuggestions(JSON.parse(clean));
-    } catch {
-      setSmartSuggestions({ summary: "Could not load suggestions. Try refreshing.", suggestions: [] });
+    } catch (err) {
+      setSmartSuggestions({ summary: "Could not load suggestions: " + (err?.message || "unknown error"), suggestions: [] });
     }
     setSmartLoading(false);
   }
@@ -414,7 +546,7 @@ Give short, practical, friendly advice. Use emojis sparingly. Format with line b
         ...aiChat.map(m => ({ role: m.role, content: m.content })),
         { role: "user", content: userMsg }
       ];
-      const res = await fetch("https:///api/chat", {
+      const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 1000, system: context, messages })
@@ -422,8 +554,8 @@ Give short, practical, friendly advice. Use emojis sparingly. Format with line b
       const data = await res.json();
       const text = data.content?.find(b => b.type === "text")?.text || "Sorry, I couldn't respond right now.";
       setAiChat(prev => [...prev, { role: "assistant", content: text }]);
-    } catch {
-      setAiChat(prev => [...prev, { role: "assistant", content: `Error: ${err.message} — ${JSON.stringify(err)}` }]);
+    } catch (err) {
+      setAiChat(prev => [...prev, { role: "assistant", content: "Error: " + (err?.message || "Could not connect. Check your internet.") }]);
     }
     setAiLoading(false);
   }
@@ -439,7 +571,7 @@ Respond ONLY with a JSON object (no markdown, no backticks) with these fields:
 { "name": "Meal Name", "description": "2-sentence description", "prepTime": "X mins", "cookTime": "X mins", "difficulty": "Easy|Medium|Hard", "ingredients": ["item 1","item 2",...], "steps": ["step 1","step 2",...], "macros": { "calories": 0, "protein": 0, "carbs": 0, "fat": 0 }, "tip": "one pro tip" }
     `.trim();
     try {
-      const res = await fetch("https:///api/chat", {
+      const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 1000, messages: [{ role: "user", content: prompt }] })
@@ -448,7 +580,7 @@ Respond ONLY with a JSON object (no markdown, no backticks) with these fields:
       const text = data.content?.find(b => b.type === "text")?.text || "{}";
       const clean = text.replace(/```json|```/g, "").trim();
       setMealIdea(JSON.parse(clean));
-    } catch { setMealIdea({ name: "Error", description: "Could not fetch meal idea.", prepTime: "-", cookTime: "-", difficulty: "Easy", ingredients: [], steps: [], macros: { calories: 0, protein: 0, carbs: 0, fat: 0 }, tip: "" }); }
+    } catch (err) { setMealIdea({ name: "Error", description: "Could not fetch: " + (err?.message || "unknown"), prepTime: "-", cookTime: "-", difficulty: "Easy", ingredients: [], steps: [], macros: { calories: 0, protein: 0, carbs: 0, fat: 0 }, tip: "" }); }
     setMealIdeaLoading(false);
   }
 
@@ -470,12 +602,72 @@ Respond ONLY with a JSON object (no markdown, no backticks) with these fields:
     { id: "goals", icon: "◎", label: "Goals" },
   ];
 
+  const bgStyle = {
+    minHeight: "100vh", background: "#0C0C14",
+    backgroundImage: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(78,205,196,0.12) 0%, transparent 70%), radial-gradient(ellipse 40% 40% at 85% 80%, rgba(255,107,53,0.08) 0%, transparent 60%)",
+    fontFamily: "'DM Sans', sans-serif", color: "#fff",
+    display: "flex", flexDirection: "column", alignItems: "center"
+  };
+
+  // ── Auth Screen ────────────────────────────────────────────────────────────
+  if (!user && SUPABASE_URL) return (
+    <div style={{ ...bgStyle, justifyContent: "center", padding: "40px 20px" }}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+      <div style={{ width: "100%", maxWidth: 400 }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#4ECDC4", letterSpacing: 3, textTransform: "uppercase", marginBottom: 4 }}>macro</div>
+          <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: -0.5 }}>NutriTrack</div>
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 8 }}>
+            {authMode === "signup" ? "Create your account to sync across all devices" : "Sign in to access your data on any device"}
+          </div>
+        </div>
+
+        <Card style={{ borderColor: "rgba(78,205,196,0.2)" }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 20 }}>
+            {authMode === "signup" ? "Create Account" : "Sign In"}
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, display: "block" }}>Email</label>
+            <input type="email" placeholder="you@example.com" value={authEmail} onChange={e => setAuthEmail(e.target.value)}
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 13, outline: "none", width: "100%", boxSizing: "border-box" }} />
+          </div>
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, display: "block" }}>Password</label>
+            <input type="password" placeholder="••••••••" value={authPassword} onChange={e => setAuthPassword(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleAuth(e)}
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 13, outline: "none", width: "100%", boxSizing: "border-box" }} />
+          </div>
+          {authError && (
+            <div style={{ fontSize: 12, color: "#FF6B6B", padding: "8px 12px", borderRadius: 8, background: "rgba(255,107,107,0.08)", border: "1px solid rgba(255,107,107,0.2)", marginBottom: 14 }}>
+              ⚠️ {authError}
+            </div>
+          )}
+          <button onClick={handleAuth} disabled={authLoading} style={{
+            width: "100%", padding: "13px 0", borderRadius: 12, border: "none",
+            background: authLoading ? "rgba(255,255,255,0.06)" : "linear-gradient(135deg, #4ECDC4, #44A5A0)",
+            color: authLoading ? "rgba(255,255,255,0.3)" : "#0C0C14",
+            fontWeight: 700, fontSize: 14, cursor: authLoading ? "default" : "pointer",
+            boxShadow: authLoading ? "none" : "0 4px 20px rgba(78,205,196,0.3)", marginBottom: 14
+          }}>{authLoading ? "Please wait..." : authMode === "signup" ? "Create Account" : "Sign In"}</button>
+          <div style={{ textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
+            {authMode === "signup" ? "Already have an account? " : "Don't have an account? "}
+            <span onClick={() => { setAuthMode(authMode === "signup" ? "signin" : "signup"); setAuthError(""); }}
+              style={{ color: "#4ECDC4", cursor: "pointer", fontWeight: 600 }}>
+              {authMode === "signup" ? "Sign In" : "Sign Up"}
+            </span>
+          </div>
+        </Card>
+
+        <div style={{ textAlign: "center", marginTop: 20, fontSize: 11, color: "rgba(255,255,255,0.2)" }}>
+          Your data syncs securely across all your devices
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div style={{
-      minHeight: "100vh", background: "#0C0C14",
-      backgroundImage: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(78,205,196,0.12) 0%, transparent 70%), radial-gradient(ellipse 40% 40% at 85% 80%, rgba(255,107,53,0.08) 0%, transparent 60%)",
-      fontFamily: "'DM Sans', sans-serif", color: "#fff",
-      display: "flex", flexDirection: "column", alignItems: "center"
+      ...bgStyle
     }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
 
@@ -489,6 +681,16 @@ Respond ONLY with a JSON object (no markdown, no backticks) with these fields:
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 1 }}>{new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</div>
             <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: "#FF6B35", marginTop: 2 }}>{totals.calories} / {goals.calories} kcal</div>
+            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", marginTop: 4, alignItems: "center" }}>
+              {syncing && <span style={{ fontSize: 9, color: "#4ECDC4", letterSpacing: 1 }}>↑ syncing...</span>}
+              {user && (
+                <button onClick={handleSignOut} style={{
+                  fontSize: 9, padding: "2px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.35)", cursor: "pointer",
+                  textTransform: "uppercase", letterSpacing: 0.5
+                }}>Sign Out</button>
+              )}
+            </div>
           </div>
         </div>
 
