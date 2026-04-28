@@ -89,6 +89,76 @@ function load(key, fallback) {
 }
 
 
+// --- Suggestion Card (needs own component so useState is legal) ---
+function SuggestionCard({ s, idx }) {
+  const [open, setOpen] = useState(false);
+  const colors = ["#FF6B35", "#4ECDC4", "#C8B4F8"];
+  const c = colors[idx % colors.length];
+  return (
+    <Card style={{ marginBottom: 14, borderColor: `${c}22` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <Tag color={c}>{s.mealTime}</Tag>
+            {s.prepTime && <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>⏱ {s.prepTime}</span>}
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{s.name}</div>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", lineHeight: 1.5 }}>{s.description}</div>
+        </div>
+      </div>
+      {s.portionNote && (
+        <div style={{ padding: "8px 12px", borderRadius: 8, marginBottom: 12, background: `${c}12`, border: `1px solid ${c}25`, fontSize: 12, color: "rgba(255,255,255,0.8)" }}>
+          📏 <strong>Portion:</strong> {s.portionNote}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+        {[["🔥", s.macros?.calories, "kcal", "#FF6B35"], ["💪", s.macros?.protein, "g P", "#4ECDC4"], ["🌾", s.macros?.carbs, "g C", "#FFE66D"], ["🥑", s.macros?.fat, "g F", "#A8DADC"]].map(([icon, val, unit, mc]) => (
+          <div key={unit} style={{ padding: "3px 9px", borderRadius: 16, fontSize: 11, background: `${mc}12`, border: `1px solid ${mc}28`, fontFamily: "'DM Mono', monospace", color: mc }}>
+            {icon} {val || 0}{unit}
+          </div>
+        ))}
+      </div>
+      {s.balanceReason && (
+        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", fontStyle: "italic", marginBottom: 10 }}>
+          ✦ {s.balanceReason}
+        </div>
+      )}
+      <button onClick={() => setOpen(o => !o)} style={{
+        width: "100%", padding: "9px 0", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)",
+        background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.55)",
+        fontSize: 11, fontWeight: 600, cursor: "pointer", letterSpacing: 0.5
+      }}>
+        {open ? "▲ Hide Prep Details" : "▼ Show Ingredients & Steps"}
+      </button>
+      {open && (
+        <div style={{ marginTop: 14 }}>
+          {s.ingredients?.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Ingredients</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {s.ingredients.map((ing, ii) => (
+                  <span key={ii} style={{ fontSize: 12, padding: "4px 10px", borderRadius: 20, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>{ing}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {s.prepSteps?.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Prep Steps</div>
+              {s.prepSteps.map((step, si) => (
+                <div key={si} style={{ display: "flex", gap: 10, marginBottom: 8, alignItems: "flex-start" }}>
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: c, minWidth: 18 }}>{si + 1}.</span>
+                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.65)", lineHeight: 1.6 }}>{step}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // --- Shared Date Picker ---
 function DatePicker({ value, onChange, todayKey, label = "Logging for" }) {
   // Build list of last 30 days for dropdown
