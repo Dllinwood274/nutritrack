@@ -552,8 +552,12 @@ Give short, practical, friendly advice. Use emojis sparingly. Format with line b
         body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 1000, system: context, messages })
       });
       const data = await res.json();
-      const text = data.content?.find(b => b.type === "text")?.text || "Sorry, I couldn't respond right now.";
-      setAiChat(prev => [...prev, { role: "assistant", content: text }]);
+      if (data.error) {
+        setAiChat(prev => [...prev, { role: "assistant", content: "API Error: " + (data.error?.message || JSON.stringify(data.error)) }]);
+      } else {
+        const text = data.content?.find(b => b.type === "text")?.text || "Sorry, I couldn't respond right now.";
+        setAiChat(prev => [...prev, { role: "assistant", content: text }]);
+      }
     } catch (err) {
       setAiChat(prev => [...prev, { role: "assistant", content: "Error: " + (err?.message || "Could not connect. Check your internet.") }]);
     }
