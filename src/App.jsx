@@ -423,7 +423,7 @@ Give short, practical, friendly advice. Use emojis sparingly. Format with line b
       const text = data.content?.find(b => b.type === "text")?.text || "Sorry, I couldn't respond right now.";
       setAiChat(prev => [...prev, { role: "assistant", content: text }]);
     } catch {
-      setAiChat(prev => [...prev, { role: "assistant", content: "Network error. Please try again." }]);
+      setAiChat(prev => [...prev, { role: "assistant", content: `Error: ${err.message} — ${JSON.stringify(err)}` }]);
     }
     setAiLoading(false);
   }
