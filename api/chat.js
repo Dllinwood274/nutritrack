@@ -6,8 +6,9 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
 
   try {
-    const body = JSON.stringify(req.body);
-    
+    const reqBody = req.body;
+    reqBody.model = "claude-sonnet-4-20250514";
+
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -15,19 +16,12 @@ export default async function handler(req, res) {
         "x-api-key": process.env.ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01"
       },
-      body: body
+      body: JSON.stringify(reqBody)
     });
 
-    const text = await response.text();
-    
-    try {
-      const data = JSON.parse(text);
-      return res.status(200).json(data);
-    } catch {
-      return res.status(200).json({ 
-        error: { message: "Raw response: " + text.substring(0, 200) }
-      });
-    }
+    const data = await response.json();
+    return res.status(200).json(data);
+
   } catch (err) {
     return res.status(200).json({ 
       error: { message: "Server error: " + err.message }
