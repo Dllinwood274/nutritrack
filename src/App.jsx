@@ -1096,11 +1096,11 @@ Respond ONLY with a JSON object (no markdown, no backticks) with these fields:
                   <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>Adjusted to your remaining macros</div>
                 </div>
                 <button onClick={() => fetchSmartSuggestions(meals, goals)} disabled={smartLoading || meals.length === 0} style={{
-                  padding: "8px 14px", borderRadius: 10, border: "none",
+                  padding: "8px 14px", borderRadius: 10,
+                  border: smartLoading || meals.length === 0 ? "1px solid rgba(255,255,255,0.06)" : "1px solid rgba(255,107,53,0.2)",
                   background: smartLoading || meals.length === 0 ? "rgba(255,255,255,0.06)" : "rgba(255,107,53,0.15)",
                   color: smartLoading || meals.length === 0 ? "rgba(255,255,255,0.25)" : "#FF6B35",
-                  fontSize: 11, fontWeight: 700, cursor: smartLoading || meals.length === 0 ? "default" : "pointer",
-                  border: "1px solid rgba(255,107,53,0.2)"
+                  fontSize: 11, fontWeight: 700, cursor: smartLoading || meals.length === 0 ? "default" : "pointer"
                 }}>
                   {smartLoading ? "..." : "↻ Refresh"}
                 </button>
