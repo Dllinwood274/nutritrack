@@ -268,7 +268,7 @@ Provide 2-3 suggestions covering the remaining meal slots. Make sure the combine
     `.trim();
 
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("https:///api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 2000, messages: [{ role: "user", content: prompt }] })
@@ -414,7 +414,7 @@ Give short, practical, friendly advice. Use emojis sparingly. Format with line b
         ...aiChat.map(m => ({ role: m.role, content: m.content })),
         { role: "user", content: userMsg }
       ];
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("https:///api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 1000, system: context, messages })
@@ -439,7 +439,7 @@ Respond ONLY with a JSON object (no markdown, no backticks) with these fields:
 { "name": "Meal Name", "description": "2-sentence description", "prepTime": "X mins", "cookTime": "X mins", "difficulty": "Easy|Medium|Hard", "ingredients": ["item 1","item 2",...], "steps": ["step 1","step 2",...], "macros": { "calories": 0, "protein": 0, "carbs": 0, "fat": 0 }, "tip": "one pro tip" }
     `.trim();
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("https:///api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 1000, messages: [{ role: "user", content: prompt }] })
