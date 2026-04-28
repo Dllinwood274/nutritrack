@@ -7,7 +7,7 @@ export default async function handler(req, res) {
 
   try {
     const reqBody = req.body;
-    reqBody.model = "claude-sonnet-4-20250514";
+    reqBody.model = "claude-sonnet-4-6";
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
