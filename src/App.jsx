@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 
 
-const CLAUDE_MODEL = “claude-sonnet-4-20250514”;
+const CLAUDE_MODEL = "claude-sonnet-4-20250514";
 
 // — Defaults & Helpers —
 const DEFAULT_GOALS = { calories: 2000, protein: 150, carbs: 225, fat: 67 };
