@@ -15,6 +15,7 @@ const MACRO_COLORS = {
 };
 
 const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
+const round1 = (v) => Math.round((v || 0) * 10) / 10;
 
 function Ring({ value, max, color, size = 80, stroke = 8, label, sub }) {
   const r = (size - stroke) / 2;
@@ -264,11 +265,12 @@ export default function MacroTracker() {
     (acc, m) => ({ calories: acc.calories + m.calories, protein: acc.protein + m.protein, carbs: acc.carbs + m.carbs, fat: acc.fat + m.fat }),
     { calories: 0, protein: 0, carbs: 0, fat: 0 }
   );
+  const roundedTotals = { calories: round1(totals.calories), protein: round1(totals.protein), carbs: round1(totals.carbs), fat: round1(totals.fat) };
   const remaining = {
-    calories: goals.calories - totals.calories,
-    protein: goals.protein - totals.protein,
-    carbs: goals.carbs - totals.carbs,
-    fat: goals.fat - totals.fat,
+    calories: round1(goals.calories - totals.calories),
+    protein: round1(goals.protein - totals.protein),
+    carbs: round1(goals.carbs - totals.carbs),
+    fat: round1(goals.fat - totals.fat),
   };
 
   // Steps helpers
@@ -373,7 +375,7 @@ export default function MacroTracker() {
     if (!aiInput.trim() || aiLoading) return;
     const userMsg = aiInput.trim(); setAiInput("");
     setAiChat(prev => [...prev, { role: "user", content: userMsg }]); setAiLoading(true);
-    const context = `You are a friendly, expert nutritionist assistant inside a macro tracking app.\nCurrent goals: ${goals.calories} kcal, ${goals.protein}g protein, ${goals.carbs}g carbs, ${goals.fat}g fat.\nConsumed today: ${totals.calories} kcal, ${totals.protein}g protein, ${totals.carbs}g carbs, ${totals.fat}g fat.\nRemaining: ${remaining.calories} kcal, ${remaining.protein}g protein, ${remaining.carbs}g carbs, ${remaining.fat}g fat.\nToday's meals: ${todayMeals.map(m => `${m.mealTime} - ${m.name} (${m.calories}kcal, P:${m.protein}g, C:${m.carbs}g, F:${m.fat}g)`).join("; ") || "None logged yet"}.\nGive short, practical, friendly advice. Use emojis sparingly.`;
+    const context = `You are a friendly, expert nutritionist assistant inside a macro tracking app.\nCurrent goals: ${goals.calories} kcal, ${goals.protein}g protein, ${goals.carbs}g carbs, ${goals.fat}g fat.\nConsumed today: ${roundedTotals.calories} kcal, ${roundedTotals.protein}g protein, ${roundedTotals.carbs}g carbs, ${roundedTotals.fat}g fat.\nRemaining: ${remaining.calories} kcal, ${remaining.protein}g protein, ${remaining.carbs}g carbs, ${remaining.fat}g fat.\nToday's meals: ${todayMeals.map(m => `${m.mealTime} - ${m.name} (${round1(m.calories)}kcal, P:${round1(m.protein)}g, C:${round1(m.carbs)}g, F:${round1(m.fat)}g)`).join("; ") || "None logged yet"}.\nGive short, practical, friendly advice. Use emojis sparingly.`;
     try {
       const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 1000, system: context, messages: [...aiChat.map(m => ({ role: m.role, content: m.content })), { role: "user", content: userMsg }] }) });
       const data = await res.json();
@@ -409,7 +411,7 @@ export default function MacroTracker() {
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 1 }}>{new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</div>
-            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: "#FF6B35", marginTop: 2 }}>{totals.calories} / {goals.calories} kcal</div>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: "#FF6B35", marginTop: 2 }}>{roundedTotals.calories} / {goals.calories} kcal</div>
           </div>
         </div>
 
@@ -432,11 +434,11 @@ export default function MacroTracker() {
                   <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 1 }}>Daily Goal</div>
                   <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 28, fontWeight: 700, lineHeight: 1.1 }}>{goals.calories}<span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginLeft: 4 }}>kcal</span></div>
                 </div>
-                <Ring value={totals.calories} max={goals.calories} color={MACRO_COLORS.calories} size={90} stroke={9} label="eaten" sub={`${remaining.calories > 0 ? remaining.calories + " left" : "over by " + Math.abs(remaining.calories)}`} />
+                <Ring value={roundedTotals.calories} max={goals.calories} color={MACRO_COLORS.calories} size={90} stroke={9} label="eaten" sub={`${remaining.calories > 0 ? remaining.calories + " left" : "over by " + Math.abs(remaining.calories)}`} />
               </div>
               <div style={{ display: "flex", gap: 16, justifyContent: "space-around", paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                 {[["protein", "P"], ["carbs", "C"], ["fat", "F"]].map(([k, l]) => (
-                  <Ring key={k} value={totals[k]} max={goals[k]} color={MACRO_COLORS[k]} size={68} stroke={7} label={l} />
+                  <Ring key={k} value={roundedTotals[k]} max={goals[k]} color={MACRO_COLORS[k]} size={68} stroke={7} label={l} />
                 ))}
               </div>
             </Card>
@@ -444,7 +446,7 @@ export default function MacroTracker() {
             <Card style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>Macro Breakdown</div>
               {[["Protein", "protein", "g"], ["Carbs", "carbs", "g"], ["Fat", "fat", "g"]].map(([l, k, u]) => (
-                <Bar key={k} label={l} value={totals[k]} max={goals[k]} color={MACRO_COLORS[k]} unit={u} />
+                <Bar key={k} label={l} value={roundedTotals[k]} max={goals[k]} color={MACRO_COLORS[k]} unit={u} />
               ))}
             </Card>
 
@@ -456,7 +458,7 @@ export default function MacroTracker() {
                 <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", lineHeight: 1.7 }}>
                   {remaining.protein > 20 && <div>🥩 You still need <strong style={{ color: "#4ECDC4" }}>{remaining.protein}g protein</strong> — consider a lean protein source next meal.</div>}
                   {remaining.carbs > 30 && <div>🌾 <strong style={{ color: "#FFE66D" }}>{remaining.carbs}g carbs</strong> remaining — great for energy before workouts.</div>}
-                  {remaining.fat < 10 && totals.fat > 0 && <div>⚠️ Fat is nearly maxed out — choose low-fat options for remaining meals.</div>}
+                  {remaining.fat < 10 && roundedTotals.fat > 0 && <div>⚠️ Fat is nearly maxed out — choose low-fat options for remaining meals.</div>}
                   {remaining.calories > 0 && remaining.protein <= 20 && remaining.carbs <= 30 && <div>✓ You're well-balanced! {remaining.calories} kcal remaining for a light snack.</div>}
                 </div>
               )}
@@ -508,7 +510,7 @@ export default function MacroTracker() {
                         <span style={{ fontSize: 13, fontWeight: 600 }}>{m.name}</span>
                         <Tag color="#4ECDC4">{m.mealTime}</Tag>
                       </div>
-                      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "rgba(255,255,255,0.35)" }}>{m.calories}kcal · P:{m.protein}g · C:{m.carbs}g · F:{m.fat}g · {m.time}</div>
+                      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "rgba(255,255,255,0.35)" }}>{round1(m.calories)}kcal · P:{round1(m.protein)}g · C:{round1(m.carbs)}g · F:{round1(m.fat)}g · {m.time}</div>
                     </div>
                     <button onClick={() => removeMeal(m.id)} style={{ background: "none", border: "none", color: "rgba(255,80,80,0.5)", cursor: "pointer", fontSize: 16, padding: 4 }}>×</button>
                   </div>
@@ -564,6 +566,7 @@ export default function MacroTracker() {
 
           const dayMeals = viewDate ? meals.filter(m => m.date === viewDate) : [];
           const dayTotals = dayMeals.reduce((a, m) => ({ cal: a.cal+m.calories, p: a.p+m.protein, c: a.c+m.carbs, f: a.f+m.fat }), { cal:0, p:0, c:0, f:0 });
+          const rDayTotals = { cal: round1(dayTotals.cal), p: round1(dayTotals.p), c: round1(dayTotals.c), f: round1(dayTotals.f) };
 
           return (
             <div style={{ paddingBottom: 40 }}>
@@ -672,10 +675,10 @@ export default function MacroTracker() {
                         <Card style={{ marginBottom: 14 }}>
                           <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>Macros Reached</div>
                           <div style={{ display: "flex", justifyContent: "space-around", marginBottom: 14 }}>
-                            <Ring value={dayTotals.cal} max={goals.calories} color={MACRO_COLORS.calories} size={80} stroke={8} label="kcal" />
-                            <Ring value={dayTotals.p} max={goals.protein} color={MACRO_COLORS.protein} size={68} stroke={7} label="P" />
-                            <Ring value={dayTotals.c} max={goals.carbs} color={MACRO_COLORS.carbs} size={68} stroke={7} label="C" />
-                            <Ring value={dayTotals.f} max={goals.fat} color={MACRO_COLORS.fat} size={68} stroke={7} label="F" />
+                            <Ring value={rDayTotals.cal} max={goals.calories} color={MACRO_COLORS.calories} size={80} stroke={8} label="kcal" />
+                            <Ring value={rDayTotals.p} max={goals.protein} color={MACRO_COLORS.protein} size={68} stroke={7} label="P" />
+                            <Ring value={rDayTotals.c} max={goals.carbs} color={MACRO_COLORS.carbs} size={68} stroke={7} label="C" />
+                            <Ring value={rDayTotals.f} max={goals.fat} color={MACRO_COLORS.fat} size={68} stroke={7} label="F" />
                           </div>
                           {dayMeals.map(m => (
                             <div key={m.id} style={{ padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
@@ -683,7 +686,7 @@ export default function MacroTracker() {
                                 <span style={{ fontSize: 13, fontWeight: 600 }}>{m.name}</span>
                                 <Tag color="#4ECDC4">{m.mealTime}</Tag>
                               </div>
-                              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "rgba(255,255,255,0.35)" }}>{m.calories}kcal · P:{m.protein}g · C:{m.carbs}g · F:{m.fat}g</div>
+                              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "rgba(255,255,255,0.35)" }}>{round1(m.calories)}kcal · P:{round1(m.protein)}g · C:{round1(m.carbs)}g · F:{round1(m.fat)}g</div>
                             </div>
                           ))}
                         </Card>
@@ -807,7 +810,7 @@ export default function MacroTracker() {
               </div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
                 {[["🔥", remaining.calories, "kcal", "#FF6B35"], ["💪", remaining.protein, "g P", "#4ECDC4"], ["🌾", remaining.carbs, "g C", "#FFE66D"], ["🥑", remaining.fat, "g F", "#A8DADC"]].map(([icon, val, unit, color]) => (
-                  <div key={unit} style={{ padding: "4px 10px", borderRadius: 20, fontSize: 11, background: `${color}15`, border: `1px solid ${color}30`, fontFamily: "'DM Mono', monospace", color }}>{icon} {val > 0 ? val : 0}{unit}</div>
+                  <div key={unit} style={{ padding: "4px 10px", borderRadius: 20, fontSize: 11, background: `${color}15`, border: `1px solid ${color}30`, fontFamily: "'DM Mono', monospace", color }}>{icon} {round1(val) > 0 ? round1(val) : 0}{unit}</div>
                 ))}
               </div>
             </Card>
