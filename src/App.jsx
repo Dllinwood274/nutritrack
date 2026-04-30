@@ -235,6 +235,7 @@ export default function MacroTracker() {
   const [stepsLog, setStepsLog] = useState(() => load("nt_steps_log", {}));
   const [stepsGoal, setStepsGoal] = useState(() => load("nt_steps_goal", 10000));
   const [stepsInput, setStepsInput] = useState("");
+  const [excludedDays, setExcludedDays] = useState(() => load("nt_excluded_days", {}));
 
   const [historyDate, setHistoryDate] = useState(null);
   const [avgPeriod, setAvgPeriod] = useState(7);
@@ -256,6 +257,7 @@ export default function MacroTracker() {
   useEffect(() => { localStorage.setItem("nt_jawzrsize_log", JSON.stringify(jawzrsizeLog)); }, [jawzrsizeLog]);
   useEffect(() => { localStorage.setItem("nt_steps_log", JSON.stringify(stepsLog)); }, [stepsLog]);
   useEffect(() => { localStorage.setItem("nt_steps_goal", JSON.stringify(stepsGoal)); }, [stepsGoal]);
+  useEffect(() => { localStorage.setItem("nt_excluded_days", JSON.stringify(excludedDays)); }, [excludedDays]);
 
   const todayMeals = meals.filter(m => (m.date || "legacy") === todayKey);
   const totals = todayMeals.reduce(
@@ -528,7 +530,8 @@ export default function MacroTracker() {
           const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - avgPeriod);
           const cutoffStr = localDateKey(cutoff);
           const periodMealDays = allDatesSet.filter(d => d >= cutoffStr);
-          const daysWithMeals = periodMealDays.filter(d => meals.some(m => m.date === d));
+          // Exclude flagged days from averages
+          const daysWithMeals = periodMealDays.filter(d => meals.some(m => m.date === d) && !excludedDays[d]);
           const n = daysWithMeals.length;
           const periodTotals = daysWithMeals.reduce((acc, date) => { meals.filter(m => m.date === date).forEach(m => { acc.cal += m.calories; acc.p += m.protein; acc.c += m.carbs; acc.f += m.fat; }); return acc; }, { cal:0, p:0, c:0, f:0 });
           const avgs = n > 0 ? { cal: Math.round(periodTotals.cal/n), p: Math.round(periodTotals.p/n), c: Math.round(periodTotals.c/n), f: Math.round(periodTotals.f/n) } : null;
@@ -568,7 +571,7 @@ export default function MacroTracker() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 700 }}>📊 Average Intake</div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>{n > 0 ? `Based on ${n} logged day${n !== 1 ? "s" : ""}` : "No data in this period"}</div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>{n > 0 ? `Based on ${n} logged day${n !== 1 ? "s" : ""}${Object.keys(excludedDays).filter(d => d >= cutoffStr && excludedDays[d]).length > 0 ? ` · ${Object.keys(excludedDays).filter(d => d >= cutoffStr && excludedDays[d]).length} excluded` : ""}` : "No data in this period"}</div>
                   </div>
                   <div style={{ display: "flex", gap: 4 }}>
                     {[7, 14, 30, 90].map(p => (
@@ -634,11 +637,12 @@ export default function MacroTracker() {
                   <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, WebkitOverflowScrolling: "touch", marginBottom: 16 }}>
                     {allPastDates.map(date => {
                       const d = new Date(date + "T12:00:00"), isSelected = date === viewDate;
+                      const isExcluded = !!excludedDays[date];
                       return (
-                        <button key={date} onClick={() => setHistoryDate(date)} style={{ minWidth: 58, padding: "10px 8px", borderRadius: 12, border: `1px solid ${isSelected ? "#4ECDC4" : "rgba(255,255,255,0.08)"}`, background: isSelected ? "rgba(78,205,196,0.15)" : "rgba(255,255,255,0.03)", color: isSelected ? "#4ECDC4" : "rgba(255,255,255,0.5)", cursor: "pointer", textAlign: "center", flexShrink: 0 }}>
+                        <button key={date} onClick={() => setHistoryDate(date)} style={{ minWidth: 58, padding: "10px 8px", borderRadius: 12, border: `1px solid ${isSelected ? "#4ECDC4" : isExcluded ? "rgba(255,80,80,0.3)" : "rgba(255,255,255,0.08)"}`, background: isSelected ? "rgba(78,205,196,0.15)" : isExcluded ? "rgba(255,80,80,0.06)" : "rgba(255,255,255,0.03)", color: isSelected ? "#4ECDC4" : isExcluded ? "rgba(255,100,100,0.6)" : "rgba(255,255,255,0.5)", cursor: "pointer", textAlign: "center", flexShrink: 0 }}>
                           <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, marginBottom: 2 }}>{d.toLocaleDateString("en-US", { weekday: "short" })}</div>
                           <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 16, fontWeight: 700 }}>{d.getDate()}</div>
-                          <div style={{ fontSize: 9, color: isSelected ? "rgba(78,205,196,0.7)" : "rgba(255,255,255,0.25)", marginTop: 2 }}>{d.toLocaleDateString("en-US", { month: "short" })}</div>
+                          <div style={{ fontSize: 9, color: isSelected ? "rgba(78,205,196,0.7)" : isExcluded ? "rgba(255,80,80,0.5)" : "rgba(255,255,255,0.25)", marginTop: 2 }}>{isExcluded ? "excl." : d.toLocaleDateString("en-US", { month: "short" })}</div>
                           <div style={{ display: "flex", gap: 2, justifyContent: "center", marginTop: 4, flexWrap: "wrap" }}>
                             {meals.some(m => m.date === date) && <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#FF6B35" }} />}
                             {workoutLog[date]?.types?.length > 0 && <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#4ECDC4" }} />}
@@ -653,6 +657,17 @@ export default function MacroTracker() {
                   {viewDate && (
                     <>
                       <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 14 }}>{new Date(viewDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</div>
+
+                      {/* Exclude from averages toggle */}
+                      <div onClick={() => setExcludedDays(prev => ({ ...prev, [viewDate]: !prev[viewDate] }))} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 12, marginBottom: 14, cursor: "pointer", background: excludedDays[viewDate] ? "rgba(255,80,80,0.08)" : "rgba(255,255,255,0.03)", border: `1px solid ${excludedDays[viewDate] ? "rgba(255,80,80,0.3)" : "rgba(255,255,255,0.08)"}`, transition: "all 0.2s" }}>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: excludedDays[viewDate] ? "#FF6B6B" : "rgba(255,255,255,0.5)" }}>{excludedDays[viewDate] ? "⊘ Excluded from averages" : "◎ Include in averages"}</div>
+                          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 2 }}>{excludedDays[viewDate] ? "Tap to include this day" : "Tap to exclude (fasting, untracked day, etc.)"}</div>
+                        </div>
+                        <div style={{ width: 36, height: 20, borderRadius: 10, background: excludedDays[viewDate] ? "rgba(255,80,80,0.3)" : "rgba(255,255,255,0.1)", position: "relative", transition: "all 0.2s" }}>
+                          <div style={{ width: 14, height: 14, borderRadius: "50%", background: excludedDays[viewDate] ? "#FF6B6B" : "rgba(255,255,255,0.4)", position: "absolute", top: 3, left: excludedDays[viewDate] ? 19 : 3, transition: "left 0.2s" }} />
+                        </div>
+                      </div>
                       {dayMeals.length > 0 && (
                         <Card style={{ marginBottom: 14 }}>
                           <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>Macros Reached</div>
@@ -1136,7 +1151,7 @@ export default function MacroTracker() {
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginBottom: 14, lineHeight: 1.6 }}>Clears all meals, weight entries, workouts, creatine logs, and goals from this device. This cannot be undone.</div>
               <button onClick={() => {
                 if (!window.confirm("Are you sure? This will permanently delete all your data.")) return;
-                ["nt_goals","nt_meals","nt_profile","nt_profile_saved","nt_computed_macros","nt_weight_log","nt_weight_unit","nt_weight_goal","nt_workout_log","nt_creatine_log","nt_jawzrsize_log","nt_steps_log","nt_steps_goal"].forEach(k => localStorage.removeItem(k));
+                ["nt_goals","nt_meals","nt_profile","nt_profile_saved","nt_computed_macros","nt_weight_log","nt_weight_unit","nt_weight_goal","nt_workout_log","nt_creatine_log","nt_jawzrsize_log","nt_steps_log","nt_steps_goal","nt_excluded_days"].forEach(k => localStorage.removeItem(k));
                 window.location.reload();
               }} style={{ width: "100%", padding: "11px 0", borderRadius: 12, border: "1px solid rgba(255,80,80,0.3)", background: "rgba(255,80,80,0.08)", color: "#FF6B6B", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Clear All Data</button>
             </Card>
