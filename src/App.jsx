@@ -24,18 +24,20 @@ function Ring({ value, max, color, size = 80, stroke = 8, label, sub }) {
   const dash = pct * circ;
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={stroke} />
-        <circle
-          cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color}
-          strokeWidth={stroke} strokeDasharray={`${dash} ${circ}`}
-          strokeLinecap="round"
-          style={{ transition: "stroke-dasharray 0.6s cubic-bezier(.4,0,.2,1)", filter: `drop-shadow(0 0 6px ${color}88)` }}
-        />
-      </svg>
-      <div style={{ textAlign: "center", marginTop: -size / 2 - 8, height: size, display: "flex", flexDirection: "column", justifyContent: "center", pointerEvents: "none" }}>
-        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: size > 70 ? 15 : 12, fontWeight: 700, color: "#fff" }}>{value}</div>
-        <div style={{ fontSize: 9, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: 1 }}>{label}</div>
+      <div style={{ position: "relative", width: size, height: size }}>
+        <svg width={size} height={size} style={{ transform: "rotate(-90deg)", display: "block" }}>
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={stroke} />
+          <circle
+            cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color}
+            strokeWidth={stroke} strokeDasharray={`${dash} ${circ}`}
+            strokeLinecap="round"
+            style={{ transition: "stroke-dasharray 0.6s cubic-bezier(.4,0,.2,1)", filter: `drop-shadow(0 0 6px ${color}88)` }}
+          />
+        </svg>
+        <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: size > 70 ? 15 : 12, fontWeight: 700, color: "#fff", lineHeight: 1 }}>{value}</div>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: 1, marginTop: 2 }}>{label}</div>
+        </div>
       </div>
       {sub && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", fontFamily: "'DM Mono', monospace" }}>{sub}</div>}
     </div>
@@ -435,11 +437,11 @@ export default function MacroTracker() {
                   <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 1 }}>Daily Goal</div>
                   <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 28, fontWeight: 700, lineHeight: 1.1 }}>{goals.calories}<span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginLeft: 4 }}>kcal</span></div>
                 </div>
-                <Ring value={roundedTotals.calories} max={goals.calories} color={MACRO_COLORS.calories} size={90} stroke={9} label="eaten" sub={`${remaining.calories > 0 ? remaining.calories + " left" : "over by " + Math.abs(remaining.calories)}`} />
+                <Ring value={roundedTotals.calories} max={goals.calories} color={MACRO_COLORS.calories} size={90} stroke={9} label="kcal" sub={`${remaining.calories > 0 ? remaining.calories + " left" : "over by " + Math.abs(remaining.calories)}`} />
               </div>
               <div style={{ display: "flex", gap: 16, justifyContent: "space-around", paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                {[["protein", "P"], ["carbs", "C"], ["fat", "F"]].map(([k, l]) => (
-                  <Ring key={k} value={roundedTotals[k]} max={goals[k]} color={MACRO_COLORS[k]} size={68} stroke={7} label={l} />
+                {[["protein", "P", "g"], ["carbs", "C", "g"], ["fat", "F", "g"]].map(([k, l, u]) => (
+                  <Ring key={k} value={roundedTotals[k]} max={goals[k]} color={MACRO_COLORS[k]} size={68} stroke={7} label={l} unit={u} />
                 ))}
               </div>
             </Card>
