@@ -399,8 +399,9 @@ export default function MacroTracker() {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0C0C14", backgroundImage: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(78,205,196,0.12) 0%, transparent 70%), radial-gradient(ellipse 40% 40% at 85% 80%, rgba(255,107,53,0.08) 0%, transparent 60%)", fontFamily: "'DM Sans', sans-serif", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center" }}>
+    <div style={{ minHeight: "100vh", background: "#0C0C14", backgroundImage: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(78,205,196,0.12) 0%, transparent 70%), radial-gradient(ellipse 40% 40% at 85% 80%, rgba(255,107,53,0.08) 0%, transparent 60%)", fontFamily: "'DM Sans', sans-serif", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", margin: 0, padding: 0, boxSizing: "border-box" }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+      <style>{`*, *::before, *::after { box-sizing: border-box; } html, body { margin: 0; padding: 0; background: #0C0C14; }`}</style>
 
       <div style={{ width: "100%", maxWidth: 480, padding: "24px 20px 0" }}>
         {/* Header */}
